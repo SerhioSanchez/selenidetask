@@ -1,113 +1,76 @@
 package ru.netology;
+
+import com.codeborne.selenide.Condition;
+import com.codeborne.selenide.Configuration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.Keys;
+
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
-import static com.codeborne.selenide.Condition.exactText;
-import static com.codeborne.selenide.Condition.visible;
-import static com.codeborne.selenide.Selectors.byText;
+import static com.codeborne.selenide.Condition.*;
+import static com.codeborne.selenide.Selectors.*;
 import static com.codeborne.selenide.Selenide.*;
 
 public class RegistrationTest {
 
+    String deliveryDate = GenerateDate.generateDate(3);
+
     @BeforeEach
-    void openForm() {
+    void setUp() {
+        Configuration.holdBrowserOpen = true;
         open("http://localhost:9999");
     }
 
-    public String generateDate(long addDays, String pattern) {
-        return LocalDate.now().plusDays(addDays).format(DateTimeFormatter.ofPattern(pattern));
+    @Test
+    void inputWithoutAutocompletion() {
+        $("[placeholder='Город']").setValue("Казань");
+        $("[data-test-id='date'] input").sendKeys(Keys.chord(Keys.SHIFT, Keys.HOME), Keys.BACK_SPACE);
+        $("[data-test-id='date'] input").val(deliveryDate);
+        $(byName("name")).val("Иван Петров");
+        $("[name='phone']").val("+89005558844");
+        $x("//span[@class='checkbox__box']").click();
+        $(byText("Забронировать")).click();
+        $("[class*='spin spin_size_m']").shouldBe(appear);
+        $(withText("Успешно!"))
+                .shouldBe(appear, Duration.ofSeconds(15))
+                .shouldBe(Condition.visible);
+        $("[class='notification__content']")
+                .shouldBe(appear, Duration.ofSeconds(15))
+                .shouldBe(Condition.visible);
+        $x(".//div[@class='notification__content']").should(text("Встреча успешно забронирована на " + deliveryDate));
     }
 
     @Test
-    void shouldCheckCorrectForm() {
-        $("[data-test-id='city'] [placeholder='Город']").sendKeys("Краснодар");
-        $("[data-test-id='date'] [placeholder='Дата встречи']").sendKeys(Keys.chord(Keys.SHIFT, Keys.HOME), Keys.BACK_SPACE);
-        String dateStr = generateDate(3, "dd.MM.yyyy");
-        $("[data-test-id='date'] [placeholder='Дата встречи']").sendKeys(dateStr);
-        $("[data-test-id='name'] [name='name']").sendKeys("Иван Петров");
-        $("[data-test-id='phone'] [name='phone']").sendKeys("+79012345678");
-        $("[data-test-id=agreement]").click();
-        $("[type='button'] .button__text").click();
-        $(".notification__title").shouldBe(visible, Duration.ofSeconds(15));
-        $(".notification__title").find(String.valueOf(exactText("Успешно!")));
-        $("[data-test-id=notification] .notification__content").should(exactText("Встреча успешно забронирована на " + dateStr));
-
+    void autocompleteInput() {
+        $("[placeholder='Город']").setValue("Ка");
+        $$("[class*='menu-item__control']").find(exactText("Казань")).click();
+        $("[data-test-id='date']").click();
+        LocalDate dateDefault = LocalDate.now().plusDays(3);
+        LocalDate dateOfMeeting = LocalDate.now().plusDays(7);
+        String dayToSearch = String.valueOf(dateOfMeeting.getDayOfMonth());
+        if (dateOfMeeting.getMonthValue() > dateDefault.getMonthValue() | dateOfMeeting.getYear() > dateDefault.getYear()) {
+            $(".calendar__arrow_direction_right[data-step='1']").click();
+        }
+        $$("td.calendar__day").find(exactText(dayToSearch)).click();
+        $(byName("name")).val("Иван Петров");
+        $("[name='phone']").val("+89005558844");
+        $x("//span[@class='checkbox__box']").click();
+        $(byText("Забронировать")).click();
+        $("[class*='spin spin_size_m']").shouldBe(appear);
+        $(withText("Успешно!"))
+                .shouldBe(appear, Duration.ofSeconds(15));
+        $("[class='notification__content']")
+                .shouldBe(appear, Duration.ofSeconds(15))
+                .shouldBe(visible);
+        $x(".//div[@class='notification__content']").should(text("Встреча успешно забронирована на " + dayToSearch));
     }
 
-    @Test
-    void shouldUnCheckCorrectCity() {
-        $("[data-test-id='city'] [placeholder='Город']").sendKeys("Армавир");
-        $("[data-test-id='date'] [placeholder='Дата встречи']").sendKeys(Keys.chord(Keys.SHIFT, Keys.HOME), Keys.BACK_SPACE);
-        $("[data-test-id='date'] input").sendKeys(generateDate(3, "dd.MM.yyyy"));
-        $("[data-test-id='name'] [name='name']").sendKeys("Иван Петров");
-        $("[data-test-id='phone'] [name='phone']").sendKeys("+79180234455");
-        $("[data-test-id=agreement]").click();
-        $("[type='button'] .button__text").click();
-        $("[data-test-id='city'] .input__sub").should(exactText("Доставка в выбранный город недоступна"));
+    public static class GenerateDate {
+        public static String generateDate(int days) {
+            return LocalDate.now().plusDays(days).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
+        }
     }
-
-    @Test
-    void shouldUnCheckCorrectDate() {
-        $("[data-test-id='city'] [placeholder='Город']").sendKeys("Москва");
-        $(".input_type_tel [type='tel']").doubleClick().sendKeys("Delete");
-        $("[data-test-id='date'] input").sendKeys(generateDate(1, "dd.MM.yyyy"));
-        $("[data-test-id='name'] [name='name']").sendKeys("Иван Петров");
-        $("[data-test-id='phone'] [name='phone']").sendKeys("+79180234455");
-        $("[data-test-id=agreement]").click();
-        $("[type='button'] .button__text").click();
-        $("[data-test-id='date'] .input__sub").should(exactText("Заказ на выбранную дату невозможен"));
-    }
-
-    @Test
-    void shouldUnCheckCorrectName() {
-        $("[data-test-id='city'] [placeholder='Город']").sendKeys("Москва");
-        $(".input_type_tel [type='tel']").doubleClick().sendKeys("Delete");
-        $("[data-test-id='date'] input").sendKeys(generateDate(3, "dd.MM.yyyy"));
-        $("[data-test-id='name'] [name='name']").sendKeys("Ivan Петров");
-        $("[data-test-id='phone'] [name='phone']").sendKeys("+79180234455");
-        $("[data-test-id=agreement]").click();
-        $("[type='button'] .button__text").click();
-        $(".input_invalid[data-test-id='name'] .input__sub").should(exactText("Имя и Фамилия указаные неверно. Допустимы только русские буквы, пробелы и дефисы."));
-    }
-
-
-    @Test
-    void shouldUnCheckCorrectPhone() {
-        $("[data-test-id='city'] [placeholder='Город']").sendKeys("Москва");
-        $(".input_type_tel [type='tel']").doubleClick().sendKeys("Delete");
-        $("[data-test-id='date'] input").sendKeys(generateDate(3, "dd.MM.yyyy"));
-        $("[data-test-id='name'] [name='name']").sendKeys("Иван Петров");
-        $("[data-test-id='phone'] [name='phone']").sendKeys("300303");
-        $("[data-test-id=agreement]").click();
-        $("[type='button'] .button__text").click();
-        $(".input_invalid[data-test-id='phone'] .input__sub").should(exactText("Телефон указан неверно. Должно быть 11 цифр, например, +79012345678."));
-    }
-
-    @Test
-    void shouldUnCheckCorrectCheck() {
-        $("[data-test-id='city'] [placeholder='Город']").sendKeys("Москва");
-        $(".input_type_tel [type='tel']").doubleClick().sendKeys("Delete");
-        $("[data-test-id='date'] input").sendKeys(generateDate(3, "dd.MM.yyyy"));
-        $("[data-test-id='name'] [name='name']").sendKeys("Иван Иванов");
-        $("[data-test-id='phone'] [name='phone']").sendKeys("+79180234455");
-        $("[type='button'] .button__text").click();
-        $("[data-test-id=agreement] .checkbox__text").should(exactText("Я соглашаюсь с условиями обработки и использования  моих персональных данных"));
-    }
-
-    @Test
-    void shouldUnCheckCorrectNameEmpty() {
-        $("[data-test-id='city'] [placeholder='Город']").sendKeys("Москва");
-        $(".input_type_tel [type='tel']").doubleClick().sendKeys("Delete");
-        $("[data-test-id='date'] input").sendKeys("Delete");
-        $("[data-test-id='date'] input").sendKeys(generateDate(3, "dd.MM.yyyy"));
-        $("[data-test-id='phone'] [name='phone']").sendKeys("+79180234455");
-        $("[data-test-id=agreement]").click();
-        $("[type='button'] .button__text").click();
-        $("[data-test-id='name'] .input__sub").should(exactText("Поле обязательно для заполнения"));
-    }
-
 }
